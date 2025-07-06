@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# Union sync for Adventures and Projects from Obsidian and Server to Content
+# Removes files from content if missing from BOTH sources
+
+set -e
+
+# Paths
+OBSIDIAN_ADVENTURES="/home/ollie/Documents/Obsidian Vaults/HiveMind/Blog Posts/Adventures"
+OBSIDIAN_PROJECTS="/home/ollie/Documents/Obsidian Vaults/HiveMind/Blog Posts/Projects"
+SERVER_ADVENTURES="/home/ollie/Github/BeyondTheBenchServer/posts/Adventures"
+SERVER_PROJECTS="/home/ollie/Github/BeyondTheBenchServer/posts/Projects"
+CONTENT_ADVENTURES="/home/ollie/Github/BeyondTheBenchContent/Adventures"
+CONTENT_PROJECTS="/home/ollie/Github/BeyondTheBenchContent/Projects"
+
+sync_union() {
+  SRC1="$1"
+  SRC2="$2"
+  DEST="$3"
+  mkdir -p "$DEST"
+
+  # Copy new/updated files from both sources
+  for SRC in "$SRC1" "$SRC2"; do
+    if [ -d "$SRC" ]; then
+      find "$SRC" -maxdepth 1 -type f -name '*.md' -exec cp -u '{}' "$DEST" \;
+    fi
+  done
+
+  # Remove files from DEST not present in either source
+  for FILE in "$DEST"/*.md; do
+    [ -e "$FILE" ] || continue
+    BASENAME="$(basename "$FILE")"
+    IN_SRC1=0
+    IN_SRC2=0
+    [ -f "$SRC1/$BASENAME" ] && IN_SRC1=1
+    [ -f "$SRC2/$BASENAME" ] && IN_SRC2=1
+    if [ $IN_SRC1 -eq 0 ] && [ $IN_SRC2 -eq 0 ]; then
+      rm "$FILE"
+    fi
+  done
+}
+
+# Sync Adventures
+sync_union "$OBSIDIAN_ADVENTURES" "$SERVER_ADVENTURES" "$CONTENT_ADVENTURES"
+# Sync Projects
+sync_union "$OBSIDIAN_PROJECTS" "$SERVER_PROJECTS" "$CONTENT_PROJECTS"
+
+echo "Union sync complete."
+
+python3 /home/ollie/Github/BeyondTheBenchContent/scripts/images.py
+
+git add . 
+git commit -m "chore: Automated update of blog posts and images"
+git push origin master
+exit 0

@@ -2,7 +2,7 @@ name: Notify Hugo Site on Content Update
 
 on:
   push:
-    branches: [main]
+    branches: [master]
 
 jobs:
   notify:

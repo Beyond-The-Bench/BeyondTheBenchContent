@@ -19,10 +19,18 @@ sync_union() {
   DEST="$3"
   mkdir -p "$DEST"
 
-  # Copy new/updated files from both sources
+  # Always copy from both sources (source of truth)
   for SRC in "$SRC1" "$SRC2"; do
     if [ -d "$SRC" ]; then
-      find "$SRC" -maxdepth 1 -type f -name '*.md' -exec cp -u '{}' "$DEST" \;
+      for FILE in "$SRC"/*.md; do
+        [ -e "$FILE" ] || continue
+        BASENAME="$(basename "$FILE")"
+        DEST_FILE="$DEST/$BASENAME"
+        
+        # Always copy - sources are source of truth
+        echo "Copying $BASENAME from $(basename "$SRC")"
+        cp "$FILE" "$DEST_FILE"
+      done
     fi
   done
 
@@ -35,6 +43,7 @@ sync_union() {
     [ -f "$SRC1/$BASENAME" ] && IN_SRC1=1
     [ -f "$SRC2/$BASENAME" ] && IN_SRC2=1
     if [ $IN_SRC1 -eq 0 ] && [ $IN_SRC2 -eq 0 ]; then
+      echo "Removing $BASENAME (not found in either source)"
       rm "$FILE"
     fi
   done

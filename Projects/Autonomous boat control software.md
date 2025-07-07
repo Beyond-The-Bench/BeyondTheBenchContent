@@ -32,7 +32,7 @@ To get it running, I used:
 
 This starts up a simulated sailboat on a custom lake location, running faster than real time so I’m not sat there watching it crawl across the screen.
 
-![Image Description](/images/Pasted%20image%2020250412221820.png)
+![Image Description](/images/Pasted%20image%2020250412221820.webp)
 
 ---
 
@@ -44,7 +44,7 @@ In a real-world setup, that script would probably be running on a Raspberry Pi, 
 
 While I was setting this all up, I also used QGroundControl to double-check that the simulator and MavLink connections were working properly — it’s handy for visualising missions and status info.
 
-![Image Description](/images/Pasted%20image%2020250412221853.png)
+![Image Description](/images/Pasted%20image%2020250412221853.webp)
 
 ---
 
@@ -64,7 +64,7 @@ The key features:
 
 - It then uploads that route as a list of waypoints to the boat.
 
-![Image Description](/images/Pasted%20image%2020250412222508.png)
+![Image Description](/images/Pasted%20image%2020250412222508.webp)
 
 Once uploaded, you just switch the boat into **AUTO** mode, and off it goes, following the waypoints.
 
@@ -83,7 +83,7 @@ The frontend connects to the Python server via WebSockets to:
 
 Click a spot on the map → route gets planned → boat sails there. Easy.
 
-![Image Description](/images/Pasted%20image%2020250412222320.png)
+![Image Description](/images/Pasted%20image%2020250412222320.webp)
 
 ---
 
@@ -93,7 +93,7 @@ It all works pretty well for now, but there’s still plenty of stuff I want to 
 
 - It’d be nice to show the boat’s current mode in the UI — sometimes it doesn’t move because it’s not armed or not in AUTO, and that’s not always obvious.
 
-- Pathfinding could be made smarter and more efficient. ![Image Description](/images/Pasted%20image%2020250412222535.png)
+- Pathfinding could be made smarter and more efficient. ![Image Description](/images/Pasted%20image%2020250412222535.webp)
 
 - A visual tool to define the geo-fence would make setup easier, especially when moving to different lakes or test areas.
 

@@ -15,7 +15,7 @@ The morning of our last day arrived far too quickly. We spent the final moments 
 
 On the way to drop the moped off, we stopped for fuel to fill the tank back up, which brought the total fuel bill to only 24 euros for the week. The moped hire team gave us a lift to the airport, and before we knew it, we were at the **departure gate**.
 
-![Image Description](/images/IMG_5269.jpeg)
+![Image Description](/images/IMG_5269.webp)
 
 The flight back was uneventful… mostly. **Ollie gave up his seat** for a crying child during takeoff — the sacrifice of a good Samaritan, right? That left us with a slightly more peaceful flight than it might’ve been, but we finally touched down at **Bristol airport** after what felt like the longest journey home.
 

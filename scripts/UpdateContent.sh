@@ -50,6 +50,11 @@ echo "Union sync complete."
 python3 /home/ollie/Github/BeyondTheBenchContent/scripts/images.py
 
 git add . 
-git commit -m "chore: Automated update of blog posts and images"
-git push origin master
+# Only commit if there are changes
+if ! git diff --staged --quiet; then
+    git commit -m "chore: Automated update of blog posts and images"
+    git push origin master
+else
+    echo "No changes to commit"
+fi
 exit 0

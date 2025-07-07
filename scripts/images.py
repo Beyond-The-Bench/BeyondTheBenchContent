@@ -110,6 +110,8 @@ def main():
                     ]
                     for variation in variations:
                         image_mapping[variation] = hashed_name
+                    # Also map the hashed name to itself for idempotency
+                    image_mapping[hashed_name] = hashed_name
                     print(f"Processed: {img} -> {hashed_name}")
     
     # Process server images
@@ -128,6 +130,8 @@ def main():
                 # Process and compress
                 if compress_and_convert_to_webp(src_path, temp_path):
                     image_mapping[img] = hashed_name
+                    # Also map the hashed name to itself for idempotency
+                    image_mapping[hashed_name] = hashed_name
                     print(f"Processed: {img} -> {hashed_name}")
     
     print(f"Total image mappings created: {len(image_mapping)}")
@@ -190,7 +194,7 @@ def main():
                 
                 # Try different variations of the image name
                 possible_names = [
-                    image_name,  # Exact match
+                    image_name,  # Exact match (handles already hashed names)
                     base_name + '.jpeg',  # Try with .jpeg
                     base_name + '.jpg',   # Try with .jpg  
                     base_name + '.png',   # Try with .png

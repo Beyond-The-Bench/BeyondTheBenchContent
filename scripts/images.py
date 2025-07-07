@@ -91,8 +91,19 @@ combined_images_dir = "/home/ollie/Github/BeyondTheBenchContent/scripts/combined
 os.makedirs(combined_images_dir, exist_ok=True)
 
 # List all image files in both directories (png, jpeg, webp)
-attachments_images = set(f for f in os.listdir(attachments_dir) if f.lower().endswith((".png", ".jpeg", ".jpg")))
-server_images = set(f for f in os.listdir(server_images_dir) if f.lower().endswith((".png", ".jpeg", ".jpg", ".webp")))
+try:
+    attachments_images = set(f for f in os.listdir(attachments_dir) if f.lower().endswith((".png", ".jpeg", ".jpg")))
+    print(f"Found {len(attachments_images)} attachment images")
+except FileNotFoundError:
+    print(f"Attachments directory not found: {attachments_dir}")
+    attachments_images = set()
+
+try:
+    server_images = set(f for f in os.listdir(server_images_dir) if f.lower().endswith((".png", ".jpeg", ".jpg", ".webp")))
+    print(f"Found {len(server_images)} server images: {list(server_images)[:5]}...")  # Show first 5
+except FileNotFoundError:
+    print(f"Server images directory not found: {server_images_dir}")
+    server_images = set()
 
 # Convert attachment image names to their WebP equivalents for comparison
 attachments_images_webp = {get_webp_filename(img) for img in attachments_images}
@@ -164,18 +175,27 @@ for posts_dir in posts_dirs:
             # Step 2: Find all image references (both Obsidian and Markdown formats)
             obsidian_images = re.findall(r'\!\[\[([^]]+\.(?:png|jpeg|jpg|webp))\]\]', content)
             markdown_images = re.findall(r'!\[.*?\]\(/images/([^)]+\.(?:png|jpeg|jpg|webp))\)', content)
+            # Also find images with direct references (no /images/ prefix)
+            direct_images = re.findall(r'!\[.*?\]\(([^)]+\.(?:png|jpeg|jpg|webp))\)', content)
             
-            # Combine both formats and decode URL encoding
-            all_images = obsidian_images + [img.replace('%20', ' ') for img in markdown_images]
+            # Combine all formats and decode URL encoding
+            all_images = obsidian_images + [img.replace('%20', ' ') for img in markdown_images] + [img.replace('%20', ' ') for img in direct_images]
             
             print(f"Found {len(all_images)} images in {filename}: {all_images}")
 
             for image in all_images:
-                # Convert image to WebP format name if it's not already WebP
-                if not image.lower().endswith('.webp'):
-                    webp_image = get_webp_filename(image)
+                # Handle different image reference formats
+                if image.startswith('/images/'):
+                    # Already has /images/ prefix, extract filename
+                    image_name = image[8:]  # Remove '/images/' prefix
                 else:
-                    webp_image = image
+                    image_name = image
+                
+                # Convert image to WebP format name if it's not already WebP
+                if not image_name.lower().endswith('.webp'):
+                    webp_image = get_webp_filename(image_name)
+                else:
+                    webp_image = image_name
                 
                 # Track that this image is used
                 used_images.add(webp_image)
@@ -189,21 +209,27 @@ for posts_dir in posts_dirs:
                 else:
                     # Add to gallery images if not marked with 'X'
                     gallery_images.add(f"/images/{webp_image}")
-                    print(f"/images/{webp_image}")
+                    print(f"Added to gallery: /images/{webp_image}")
 
                 # Replace Obsidian-style links with Markdown image syntax
                 if f"![[{image}]]" in content:
                     markdown_image = f"![Image Description](/images/{webp_image.replace(' ', '%20')})"
                     content = content.replace(f"![[{image}]]", markdown_image)
                 
-                # Update existing markdown links to use WebP format
-                old_markdown = f"![Image Description](/images/{image.replace(' ', '%20')})"
+                # Update existing markdown links to use WebP format and /images/ prefix
+                # Handle direct image references (no /images/ prefix)
+                direct_pattern = rf'!\[([^\]]*)\]\({re.escape(image_name.replace(" ", "%20"))}\)'
+                if re.search(direct_pattern, content):
+                    content = re.sub(direct_pattern, rf'![\1](/images/{webp_image.replace(" ", "%20")})', content)
+                
+                # Handle /images/ prefixed references
+                old_markdown = f"![Image Description](/images/{image_name.replace(' ', '%20')})"
                 new_markdown = f"![Image Description](/images/{webp_image.replace(' ', '%20')})"
                 if old_markdown in content and old_markdown != new_markdown:
                     content = content.replace(old_markdown, new_markdown)
                 
                 # Handle other markdown image formats (different alt text)
-                markdown_pattern = rf'!\[([^\]]*)\]\(/images/{re.escape(image.replace(" ", "%20"))}\)'
+                markdown_pattern = rf'!\[([^\]]*)\]\(/images/{re.escape(image_name.replace(" ", "%20"))}\)'
                 if re.search(markdown_pattern, content):
                     content = re.sub(markdown_pattern, rf'![\1](/images/{webp_image.replace(" ", "%20")})', content)
 

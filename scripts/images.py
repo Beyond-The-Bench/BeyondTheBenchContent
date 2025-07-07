@@ -2,13 +2,10 @@ import os
 import re
 import shutil
 import json
-from PIL import Image
+from PIL import Image, ImageOps
 import subprocess
 import sys
-
-from PIL import Image
-import subprocess
-import sys
+import hashlib
 
 def install_pillow():
     """Install Pillow if not already installed"""
@@ -19,33 +16,26 @@ def install_pillow():
         subprocess.check_call([sys.executable, "-m", "pip", "install", "Pillow"])
         import PIL
 
+def get_file_hash(file_path):
+    """Generate SHA256 hash for a file"""
+    hash_sha256 = hashlib.sha256()
+    try:
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_sha256.update(chunk)
+        return hash_sha256.hexdigest()
+    except Exception as e:
+        print(f"Error hashing file {file_path}: {e}")
+        return None
+
 def compress_and_convert_to_webp(input_path, output_path, max_width=600, quality=85):
     """
     Compress and convert image to WebP format while preserving orientation
     """
     try:
         with Image.open(input_path) as img:
-            # Use ImageOps.exif_transpose() which is the most reliable method
-            # for handling EXIF orientation data
-            try:
-                from PIL import ImageOps
-                img = ImageOps.exif_transpose(img)
-            except Exception:
-                # If exif_transpose fails, try manual EXIF orientation handling
-                try:
-                    exif = img._getexif()
-                    if exif is not None:
-                        # EXIF orientation tag is 274
-                        orientation = exif.get(274)
-                        if orientation == 3:
-                            img = img.rotate(180, expand=True)
-                        elif orientation == 6:
-                            img = img.rotate(270, expand=True)
-                        elif orientation == 8:
-                            img = img.rotate(90, expand=True)
-                except (AttributeError, KeyError, TypeError):
-                    # If no EXIF data, continue without rotation
-                    pass
+            # Use ImageOps.exif_transpose() to handle EXIF orientation
+            img = ImageOps.exif_transpose(img)
             
             # Convert to RGB if necessary (for PNG with transparency)
             if img.mode in ('RGBA', 'LA', 'P'):
@@ -58,9 +48,7 @@ def compress_and_convert_to_webp(input_path, output_path, max_width=600, quality
             elif img.mode != 'RGB':
                 img = img.convert('RGB')
             
-            # Determine which dimension to use for max_width constraint
-            # For portrait images, we want to limit the width
-            # For landscape images, we want to limit the width as well
+            # Resize to max_width while maintaining aspect ratio
             if img.width > max_width:
                 ratio = max_width / img.width
                 new_height = int(img.height * ratio)
@@ -73,194 +61,215 @@ def compress_and_convert_to_webp(input_path, output_path, max_width=600, quality
         print(f"Error processing {input_path}: {e}")
         return False
 
-def get_webp_filename(original_filename):
-    """Convert original filename to WebP extension"""
-    name, ext = os.path.splitext(original_filename)
-    return f"{name}.webp"
-
-print("Starting image processing script...")
-
-# Install Pillow if needed
-install_pillow()
-
-# --- Create combined images directory from attachments_dir and server_images_dir ---
-attachments_dir = "/home/ollie/Documents/Obsidian Vaults/HiveMind/Attachments"
-server_images_dir = "/home/ollie/Github/BeyondTheBenchServer/posts/images"
-combined_images_dir = "/home/ollie/Github/BeyondTheBenchContent/scripts/combined_images"
-
-os.makedirs(combined_images_dir, exist_ok=True)
-
-# List all image files in both directories (png, jpeg, webp)
-try:
-    attachments_images = set(f for f in os.listdir(attachments_dir) if f.lower().endswith((".png", ".jpeg", ".jpg")))
-    print(f"Found {len(attachments_images)} attachment images")
-except FileNotFoundError:
-    print(f"Attachments directory not found: {attachments_dir}")
-    attachments_images = set()
-
-try:
-    server_images = set(f for f in os.listdir(server_images_dir) if f.lower().endswith((".png", ".jpeg", ".jpg", ".webp")))
-    print(f"Found {len(server_images)} server images: {list(server_images)[:5]}...")  # Show first 5
-except FileNotFoundError:
-    print(f"Server images directory not found: {server_images_dir}")
-    server_images = set()
-
-# Convert attachment image names to their WebP equivalents for comparison
-attachments_images_webp = {get_webp_filename(img) for img in attachments_images}
-
-# Union of all images (server images as-is, attachments as WebP)
-all_images = server_images | attachments_images_webp
-
-# Remove any images from combined_images_dir that are not in the union
-for f in os.listdir(combined_images_dir):
-    if f.lower().endswith((".png", ".jpeg", ".jpg", ".webp")) and f not in all_images:
-        os.remove(os.path.join(combined_images_dir, f))
-        print(f"Removed unused image: {f}")
-
-# Process and copy images
-for image in all_images:
-    dst = os.path.join(combined_images_dir, image)
+def main():
+    print("Starting image processing script...")
     
-    if image in server_images:
-        # Copy server images as-is (already processed)
-        src = os.path.join(server_images_dir, image)
-        if not os.path.exists(dst):
-            shutil.copy(src, dst)
-            print(f"Copied server image: {image}")
-    else:
-        # This is a WebP version of an attachment image
-        # Find the original attachment image
-        original_name = None
-        for att_img in attachments_images:
-            if get_webp_filename(att_img) == image:
-                original_name = att_img
-                break
+    # Install Pillow if needed
+    install_pillow()
+    
+    # Configuration
+    obsidian_dir = "/home/ollie/Documents/Obsidian Vaults/HiveMind/Attachments"
+    server_dir = "/home/ollie/Github/BeyondTheBenchServer/posts/images"
+    posts_dirs = [
+        "/home/ollie/Github/BeyondTheBenchContent/Adventures/",
+        "/home/ollie/Github/BeyondTheBenchContent/Projects/"
+    ]
+    temp_dir = "/home/ollie/Github/BeyondTheBenchContent/scripts/temp_images"
+    final_images_dir = "/home/ollie/Github/BeyondTheBenchContent/images"
+    gallery_data_file = "/home/ollie/Github/BeyondTheBenchContent/data/gallery_images.json"
+    
+    # Create directories
+    os.makedirs(temp_dir, exist_ok=True)
+    os.makedirs(final_images_dir, exist_ok=True)
+    os.makedirs(os.path.dirname(gallery_data_file), exist_ok=True)
+    
+    # Step 1: Collect and process all images
+    print("\n=== Step 1: Processing images ===")
+    image_mapping = {}  # original_name -> hashed_name.webp
+    
+    # Process Obsidian images
+    if os.path.exists(obsidian_dir):
+        obsidian_images = [f for f in os.listdir(obsidian_dir) 
+                          if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+        print(f"Found {len(obsidian_images)} Obsidian images")
         
-        if original_name and not os.path.exists(dst):
-            src = os.path.join(attachments_dir, original_name)
-            if compress_and_convert_to_webp(src, dst):
-                print(f"Compressed and converted: {original_name} -> {image}")
-            else:
-                print(f"Failed to process: {original_name}")
-
-# --- End combined images directory setup ---
-
-# Paths
-posts_dirs = [
-    "/home/ollie/Github/BeyondTheBenchContent/Adventures/",
-    "/home/ollie/Github/BeyondTheBenchContent/Projects/"
-]
-# Use combined_images_dir for processing
-attachments_dir = combined_images_dir
-final_images_dir = "/home/ollie/Github/BeyondTheBenchContent/images"
-gallery_data_file = "/home/ollie/Github/BeyondTheBenchContent/data/gallery_images.json"
-
-# Ensure final images directory exists
-os.makedirs(final_images_dir, exist_ok=True)
-
-gallery_images = set()
-used_images = set()  # Track which images are actually used
-
-# Step 1: Process each markdown file in the posts directory
-for posts_dir in posts_dirs:
-    print(f"Processing directory: {posts_dir}")
-    for filename in os.listdir(posts_dir):
-        if filename.endswith(".md"):
-            print(f"Processing file: {filename}")
+        for img in obsidian_images:
+            src_path = os.path.join(obsidian_dir, img)
+            file_hash = get_file_hash(src_path)
+            if file_hash:
+                hashed_name = f"{file_hash}.webp"
+                temp_path = os.path.join(temp_dir, hashed_name)
+                
+                # Process and compress
+                if compress_and_convert_to_webp(src_path, temp_path):
+                    # Map all possible variations of the original name
+                    variations = [
+                        img,
+                        img.replace(' ', '%20'),
+                        img.replace('%20', ' ')
+                    ]
+                    for variation in variations:
+                        image_mapping[variation] = hashed_name
+                    print(f"Processed: {img} -> {hashed_name}")
+    
+    # Process server images
+    if os.path.exists(server_dir):
+        server_images = [f for f in os.listdir(server_dir) 
+                        if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))]
+        print(f"Found {len(server_images)} server images")
+        
+        for img in server_images:
+            src_path = os.path.join(server_dir, img)
+            file_hash = get_file_hash(src_path)
+            if file_hash:
+                hashed_name = f"{file_hash}.webp"
+                temp_path = os.path.join(temp_dir, hashed_name)
+                
+                # Process and compress
+                if compress_and_convert_to_webp(src_path, temp_path):
+                    image_mapping[img] = hashed_name
+                    print(f"Processed: {img} -> {hashed_name}")
+    
+    print(f"Total image mappings created: {len(image_mapping)}")
+    
+    # Step 2: Process markdown files and update references
+    print("\n=== Step 2: Processing markdown files ===")
+    used_images = set()
+    gallery_images = set()
+    
+    for posts_dir in posts_dirs:
+        if not os.path.exists(posts_dir):
+            continue
+            
+        for filename in os.listdir(posts_dir):
+            if not filename.endswith('.md'):
+                continue
+                
             filepath = os.path.join(posts_dir, filename)
-
-            with open(filepath, "r") as file:
-                content = file.read()
-
-            # Step 2: Find all image references (both Obsidian and Markdown formats)
-            obsidian_images = re.findall(r'\!\[\[([^]]+\.(?:png|jpeg|jpg|webp))\]\]', content)
-            markdown_images = re.findall(r'!\[.*?\]\(/images/([^)]+\.(?:png|jpeg|jpg|webp))\)', content)
-            # Also find images with direct references (no /images/ prefix)
-            direct_images = re.findall(r'!\[.*?\]\(([^)]+\.(?:png|jpeg|jpg|webp))\)', content)
+            print(f"Processing: {filename}")
             
-            # Combine all formats and decode URL encoding
-            all_images = obsidian_images + [img.replace('%20', ' ') for img in markdown_images] + [img.replace('%20', ' ') for img in direct_images]
+            with open(filepath, 'r', encoding='utf-8') as f:
+                content = f.read()
             
-            print(f"Found {len(all_images)} images in {filename}: {all_images}")
-
-            for image in all_images:
-                # Handle different image reference formats
-                if image.startswith('/images/'):
-                    # Already has /images/ prefix, extract filename
-                    image_name = image[8:]  # Remove '/images/' prefix
+            # Find all image references
+            found_images = []
+            marked_images = set()
+            
+            # Extract Obsidian images
+            for match in re.finditer(r'(X\s*)?!\[\[([^]]+\.(?:png|jpg|jpeg|webp))\]\]', content):
+                is_marked = match.group(1) is not None
+                image_name = match.group(2).replace('%20', ' ')
+                found_images.append((image_name, is_marked, match.group(0)))
+                if is_marked:
+                    marked_images.add(image_name)
+            
+            # Extract Markdown images
+            for match in re.finditer(r'(X\s*)?!\[([^\]]*)\]\(([^)]+\.(?:png|jpg|jpeg|webp))\)', content):
+                is_marked = match.group(1) is not None
+                image_path = match.group(3)
+                # Remove /images/ prefix if present
+                image_name = image_path.replace('/images/', '').replace('%20', ' ')
+                found_images.append((image_name, is_marked, match.group(0)))
+                if is_marked:
+                    marked_images.add(image_name)
+            
+            print(f"  Found {len(found_images)} image references")
+            if marked_images:
+                print(f"  Found {len(marked_images)} X-marked images")
+            
+            # Update content with new references
+            for image_name, is_marked, original_text in found_images:
+                # Find the hashed name
+                hashed_name = None
+                
+                # Try different variations to find the mapping
+                # Remove .webp extension if present and try with original extensions
+                base_name = image_name
+                if image_name.endswith('.webp'):
+                    base_name = image_name[:-5]  # Remove .webp
+                
+                # Try different variations of the image name
+                possible_names = [
+                    image_name,  # Exact match
+                    base_name + '.jpeg',  # Try with .jpeg
+                    base_name + '.jpg',   # Try with .jpg  
+                    base_name + '.png',   # Try with .png
+                    image_name.replace(' ', '%20'),  # URL encoded
+                    image_name.replace('%20', ' '),  # URL decoded
+                    base_name.replace(' ', '%20') + '.jpeg',  # URL encoded with .jpeg
+                    base_name.replace('%20', ' ') + '.jpeg',  # URL decoded with .jpeg
+                ]
+                
+                for possible_name in possible_names:
+                    if possible_name in image_mapping:
+                        hashed_name = image_mapping[possible_name]
+                        print(f"    Found mapping: {possible_name} -> {hashed_name}")
+                        break
+                
+                if hashed_name:
+                    used_images.add(hashed_name)
+                    
+                    # Add to gallery if not marked with X
+                    if not is_marked:
+                        gallery_images.add(f"/images/{hashed_name}")
+                    
+                    # Replace in content
+                    new_reference = f"![Image Description](/images/{hashed_name})"
+                    content = content.replace(original_text, new_reference)
+                    print(f"    Updated: {image_name} -> {hashed_name}")
                 else:
-                    image_name = image
-                
-                # Convert image to WebP format name if it's not already WebP
-                if not image_name.lower().endswith('.webp'):
-                    webp_image = get_webp_filename(image_name)
-                else:
-                    webp_image = image_name
-                
-                # Track that this image is used
-                used_images.add(webp_image)
-                
-                # Check if the image is preceded by "X" (with or without space) in Obsidian format
-                image_pattern = rf'X!\[\[{re.escape(image)}\]\]'
-                if re.search(image_pattern, content):
-                    # Skip images marked with "X" in the content
-                    print("Image marked, wont be added to the gallery")
-                    content = content.replace(f"X![[{image}]]", f"![[{webp_image}]]")
-                else:
-                    # Add to gallery images if not marked with 'X'
-                    gallery_images.add(f"/images/{webp_image}")
-                    print(f"Added to gallery: /images/{webp_image}")
+                    print(f"    Warning: No mapping found for {image_name}")
+            
+            # Write updated content
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(content)
+    
+    # Step 3: Move used images to final directory
+    print("\n=== Step 3: Moving images to final directory ===")
+    
+    # Clean final directory
+    if os.path.exists(final_images_dir):
+        for f in os.listdir(final_images_dir):
+            if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+                os.remove(os.path.join(final_images_dir, f))
+    
+    # Copy used images
+    moved_count = 0
+    for image in used_images:
+        src = os.path.join(temp_dir, image)
+        dst = os.path.join(final_images_dir, image)
+        if os.path.exists(src):
+            shutil.copy2(src, dst)
+            moved_count += 1
+            print(f"  Moved: {image}")
+    
+    print(f"Moved {moved_count} images to final directory")
+    
+    # Step 4: Create gallery JSON
+    print("\n=== Step 4: Creating gallery JSON ===")
+    
+    # Verify gallery images exist
+    verified_gallery = []
+    for img_path in gallery_images:
+        img_name = img_path.replace('/images/', '')
+        if os.path.exists(os.path.join(final_images_dir, img_name)):
+            verified_gallery.append(img_path)
+    
+    with open(gallery_data_file, 'w', encoding='utf-8') as f:
+        json.dump(sorted(verified_gallery), f, indent=2)
+    
+    print(f"Gallery JSON created with {len(verified_gallery)} images")
+    
+    # Cleanup temp directory
+    if os.path.exists(temp_dir):
+        shutil.rmtree(temp_dir)
+    
+    # Summary
+    print(f"\n=== Summary ===")
+    print(f"Total images processed: {len(image_mapping)}")
+    print(f"Images used in posts: {len(used_images)}")
+    print(f"Images in gallery: {len(verified_gallery)}")
+    print(f"Images excluded from gallery: {len(used_images) - len(verified_gallery)}")
 
-                # Replace Obsidian-style links with Markdown image syntax
-                if f"![[{image}]]" in content:
-                    markdown_image = f"![Image Description](/images/{webp_image.replace(' ', '%20')})"
-                    content = content.replace(f"![[{image}]]", markdown_image)
-                
-                # Update existing markdown links to use WebP format and /images/ prefix
-                # Handle direct image references (no /images/ prefix)
-                direct_pattern = rf'!\[([^\]]*)\]\({re.escape(image_name.replace(" ", "%20"))}\)'
-                if re.search(direct_pattern, content):
-                    content = re.sub(direct_pattern, rf'![\1](/images/{webp_image.replace(" ", "%20")})', content)
-                
-                # Handle /images/ prefixed references
-                old_markdown = f"![Image Description](/images/{image_name.replace(' ', '%20')})"
-                new_markdown = f"![Image Description](/images/{webp_image.replace(' ', '%20')})"
-                if old_markdown in content and old_markdown != new_markdown:
-                    content = content.replace(old_markdown, new_markdown)
-                
-                # Handle other markdown image formats (different alt text)
-                markdown_pattern = rf'!\[([^\]]*)\]\(/images/{re.escape(image_name.replace(" ", "%20"))}\)'
-                if re.search(markdown_pattern, content):
-                    content = re.sub(markdown_pattern, rf'![\1](/images/{webp_image.replace(" ", "%20")})', content)
-
-            # Step 3: Write the updated content back to the markdown file
-            with open(filepath, "w") as file:
-                file.write(content)
-
-# Step 4: Remove unused images from combined_images_dir
-for f in os.listdir(combined_images_dir):
-    if f.lower().endswith((".png", ".jpeg", ".jpg", ".webp")) and f not in used_images:
-        os.remove(os.path.join(combined_images_dir, f))
-        print(f"Removed unused image from combined dir: {f}")
-
-# Step 5: Copy used WebP images to final images directory and remove unused ones
-# First, remove all old images from final directory
-for f in os.listdir(final_images_dir):
-    if f.lower().endswith((".png", ".jpeg", ".jpg", ".webp")):
-        os.remove(os.path.join(final_images_dir, f))
-
-# Copy only the used images
-for image in used_images:
-    src = os.path.join(combined_images_dir, image)
-    dst = os.path.join(final_images_dir, image)
-    if os.path.exists(src):
-        shutil.copy(src, dst)
-        print(f"Copied to final images: {image}")
-
-# Step 6: Write gallery images to JSON
-with open(gallery_data_file, "w") as json_file:
-    json.dump(sorted(gallery_images), json_file, indent=2)
-
-print("Markdown files processed and images compressed/converted successfully.")
-print(f"Total images used: {len(used_images)}")
-print(f"Images in gallery: {len(gallery_images)}")
+if __name__ == "__main__":
+    main()

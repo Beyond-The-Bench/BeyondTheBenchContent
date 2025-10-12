@@ -16,10 +16,10 @@ echo "Script directory: $SCRIPT_DIR"
 echo "Repository root: $REPO_ROOT"
 
 # Paths
-OBSIDIAN_ADVENTURES="/home/ollie/Documents/Obsidian Vaults/HiveMind/Blog Posts/Adventures"
-OBSIDIAN_PROJECTS="/home/ollie/Documents/Obsidian Vaults/HiveMind/Blog Posts/Projects"
-SERVER_ADVENTURES="/home/ollie/Github/BeyondTheBenchServer/posts/Adventures"
-SERVER_PROJECTS="/home/ollie/Github/BeyondTheBenchServer/posts/Projects"
+OBSIDIAN_ADVENTURES="/home/share/Obsidian/HiveMind/Blog Posts/Adventures"
+OBSIDIAN_PROJECTS="/home/share/Obsidian/HiveMind/Blog Posts/Projects"
+SERVER_ADVENTURES="/home/ollie/BlogUploadServer/posts/Adventures"
+SERVER_PROJECTS="/home/ollie/BlogUploadServer/posts/Projects"
 CONTENT_ADVENTURES="$REPO_ROOT/Adventures"
 CONTENT_PROJECTS="$REPO_ROOT/Projects"
 

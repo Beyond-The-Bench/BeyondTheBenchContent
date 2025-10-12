@@ -68,15 +68,15 @@ def main():
     install_pillow()
     
     # Configuration
-    obsidian_dir = "/home/ollie/Documents/Obsidian Vaults/HiveMind/Attachments"
-    server_dir = "/home/ollie/Github/BeyondTheBenchServer/posts/images"
+    obsidian_dir = "home/share/Obsidian/HiveMind/Attachments"
+    server_dir = "/home/ollie/BlogUploadServer/posts/images"
     posts_dirs = [
-        "/home/ollie/Github/BeyondTheBenchContent/Adventures/",
-        "/home/ollie/Github/BeyondTheBenchContent/Projects/"
+        "/home/ollie/BeyondTheBenchContent/Adventures/",
+        "/home/ollie/BeyondTheBenchContent/Projects/"
     ]
-    temp_dir = "/home/ollie/Github/BeyondTheBenchContent/scripts/temp_images"
-    final_images_dir = "/home/ollie/Github/BeyondTheBenchContent/images"
-    gallery_data_file = "/home/ollie/Github/BeyondTheBenchContent/data/gallery_images.json"
+    temp_dir = "/home/ollie/BeyondTheBenchContent/scripts/temp_images"
+    final_images_dir = "/home/ollie/BeyondTheBenchContent/images"
+    gallery_data_file = "/home/ollie/BeyondTheBenchContent/data/gallery_images.json"
     
     # Create directories
     os.makedirs(temp_dir, exist_ok=True)

@@ -81,7 +81,7 @@ sync_union "$OBSIDIAN_PROJECTS" "$SERVER_PROJECTS" "$CONTENT_PROJECTS"
 echo "=== Blog post sync complete ==="
 
 echo "=== Processing images ==="
-python3 "$SCRIPT_DIR/images.py"
+/home/ollie/anaconda3/bin/python "$SCRIPT_DIR/images.py"
 echo "=== Image processing complete ==="
 
 echo "=== Committing changes ==="
